@@ -35,24 +35,86 @@ function createUserPage(user) {
 	return userPage
 }
 
+function createPost(post) {
+	const postLi = /*html*/ `
+        <li>
+            <h4>${post.title}</h4>
+            <p>${post.body}</p>
+        </li>
+    `
+	return postLi
+}
+
+function createUserPosts(posts) {
+	const userPosts = /*html*/ `
+        <section class="user-posts">
+            <h2>Posts</h2>
+            <ul>
+                ${posts.map(createPost).join('')}
+            </ul>
+        </section>
+    `
+	return userPosts
+}
+
 export async function getAllUsers() {
+	const savedUsers = JSON.parse(localStorage.getItem('users'))
+	if (savedUsers && Array.isArray(savedUsers) && savedUsers.length > 0) {
+		return savedUsers
+	}
+
 	const res = await fetch(baseURL + '/users')
 	const users = await res.json()
+
+	localStorage.setItem('users', JSON.stringify(users))
+
 	return users
 }
 
 async function getUserById(userId) {
+	const savedUsers = JSON.parse(localStorage.getItem('users'))
+	if (savedUsers && Array.isArray(savedUsers) && savedUsers.length > 0) {
+		return savedUsers.find((user) => user.id == userId)
+	}
+
 	const res = await fetch(baseURL + `/users/${userId}`)
 	const user = await res.json()
 	return user
 }
 
-function handleOnCardClick(card) {
+async function getUserPosts(userId) {
+	let savedUserPosts = JSON.parse(localStorage.getItem('user_posts'))
+	if (!savedUserPosts) {
+		savedUserPosts = {}
+	}
+
+	const userPosts = savedUserPosts[userId]
+	if (userPosts && userPosts.length > 0) {
+		return userPosts
+	}
+
+	const res = await fetch(baseURL + `/users/${userId}/posts`)
+	const posts = await res.json()
+
+	savedUserPosts[userId] = posts
+	localStorage.setItem('user_posts', JSON.stringify(savedUserPosts))
+
+	return posts
+}
+
+async function handleOnCardClick(card) {
 	insertLoaderToDOM()
-	getUserById(card.id).then((user) => {
-		const userPageAsHtmlString = createUserPage(user)
-		main.innerHTML = userPageAsHtmlString
-	})
+	const user = await getUserById(card.id)
+	const posts = await getUserPosts(card.id)
+
+	const userPageAsHtmlString = createUserPage(user)
+	main.innerHTML = userPageAsHtmlString
+
+	const userPostsAsHtmlString = createUserPosts(posts)
+	main.innerHTML += userPostsAsHtmlString
+
+	const backBtn = document.querySelector('#back-btn')
+	backBtn.addEventListener('click', displayAllUsers)
 }
 
 export function handleOnClick(event) {
@@ -65,7 +127,14 @@ function insertLoaderToDOM() {
 	main.innerHTML = loader.outerHTML
 }
 
-export function insertUsersToDOM(users) {
+function insertUsersToDOM(users) {
 	const usersAsHtmlString = users.map((user) => createUserCard(user)).join('')
 	main.innerHTML = usersAsHtmlString
+}
+
+export function displayAllUsers() {
+	insertLoaderToDOM()
+	getAllUsers().then((users) => {
+		insertUsersToDOM(users)
+	})
 }
